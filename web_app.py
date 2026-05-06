@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, redirect, render_template, request, url_for
 
 from distance import ShipVelocity
 from domain import TransferCase, case_from_dict
@@ -109,6 +109,11 @@ def _evaluate_and_optionally_save(
 @app.get("/")
 def index():
     return render_template("index.html", result=None, form={})
+
+
+@app.get("/evaluate")
+def evaluate_redirect():
+    return redirect(url_for("index"))
 
 
 @app.post("/evaluate")

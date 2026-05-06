@@ -24,10 +24,9 @@ from typing import Iterable
 import requests
 
 
-SERVICE_KEY = os.getenv(
-    "KMA_SERVICE_KEY",
-    "5f4422def4612c2d9283d3b15abce779cf1973e73ac6b1b98789cc09dbbb79c2",
-)
+SERVICE_KEY = os.getenv("KMA_SERVICE_KEY")
+if not SERVICE_KEY:
+    raise RuntimeError("KMA_SERVICE_KEY 환경변수가 필요합니다.")
 
 NCST_URL = "http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtNcst"
 VILAGE_URL = "http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst"
