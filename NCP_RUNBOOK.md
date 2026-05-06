@@ -9,17 +9,58 @@ cd /mnt/c/Users/hepsgram/Repos/maritime-emergency-transfer-db
 python3 -m pip install -r requirements.txt
 ```
 
-## 2. DB 환경변수 설정
+## 2. 환경변수 설정 (`.env`)
+
+리포 루트에 `.env` 파일을 만든다. (`.gitignore`에 등록되어 있어 깃에 올라가지 않는다.)
 
 ```bash
-export DB_HOST=127.0.0.1
-export DB_PORT=3306
-export DB_USER=maritime_user
-export DB_PASSWORD='비밀번호'
-export DB_NAME=maritime_transfer
-export KMA_SERVICE_KEY='기상청키'
-export EMERGENCY_SERVICE_KEY='응급의료정보키'
+cat > .env <<'EOF'
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USER=maritime_user
+DB_PASSWORD=비밀번호
+DB_NAME=maritime_transfer
+KMA_SERVICE_KEY=기상청키
+EMERGENCY_SERVICE_KEY=응급의료정보키
+EOF
+chmod 600 .env
 ```
+
+### CLI에서 직접 실행할 때
+
+`.env`를 셸에 로드하고 실행한다.
+
+```bash
+set -a; source .env; set +a
+python3 main.py --use-db --pretty --limit 5
+```
+
+### systemd로 띄울 때
+
+unit 파일(`/etc/systemd/system/ncp-met.service`)의 `[Service]` 섹션에 `.env`를 EnvironmentFile로 등록한다.
+
+```ini
+[Service]
+EnvironmentFile=/root/NCP-MET/.env
+WorkingDirectory=/root/NCP-MET
+ExecStart=/root/NCP-MET/.venv/bin/gunicorn -w 2 -b 0.0.0.0:8000 web_app:app
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+수정 후:
+
+```bash
+systemctl daemon-reload
+systemctl restart ncp-met
+systemctl status ncp-met
+```
+
+키를 회전할 때는 `.env`만 갈아끼우고 `systemctl restart ncp-met`. unit 파일을 건드릴 필요 없다.
+
+`KMA_SERVICE_KEY` 또는 `EMERGENCY_SERVICE_KEY`가 누락되면 모듈 import 시점에 즉시 RuntimeError로 죽는다. 로그(`journalctl -u ncp-met -n 50`)에서 어느 키가 빠졌는지 확인할 수 있다.
 
 ## 3. 스키마 생성
 
