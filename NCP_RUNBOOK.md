@@ -18,6 +18,7 @@ export DB_USER=maritime_user
 export DB_PASSWORD='비밀번호'
 export DB_NAME=maritime_transfer
 export KMA_SERVICE_KEY='기상청키'
+export EMERGENCY_SERVICE_KEY='응급의료정보키'
 ```
 
 ## 3. 스키마 생성
@@ -37,7 +38,26 @@ python3 import_hospitals.py
 
 `--dry-run`은 CSV 파싱과 기상청 격자 변환만 확인한다. 실제 DB write는 하지 않는다.
 
-## 5. 평가 실행
+## 5. 실시간 가용병상 snapshot 적재
+
+응급의료기관 실시간 가용병상정보 API 키가 있을 때 실행:
+
+```bash
+python3 fetch_hospital_snapshot.py --dry-run
+python3 fetch_hospital_snapshot.py
+```
+
+특정 지역만 조회:
+
+```bash
+python3 fetch_hospital_snapshot.py --stage1 부산광역시 --dry-run
+python3 fetch_hospital_snapshot.py --stage1 부산광역시
+```
+
+snapshot이 적재되면 추천 결과의 자원 판정이 `UNKNOWN`에서 `CHECKED`로 바뀐다.
+현재 판정 자원은 `ICU`, `OPERATING_ROOM`, `CT`, `ANGIOGRAPHY`, `VENTILATOR`, `MI_ACCEPTABLE`이다.
+
+## 6. 평가 실행
 
 DB 병원 마스터를 읽고 결과를 터미널에 출력:
 
@@ -57,7 +77,7 @@ python3 main.py --use-db --save-db --pretty --limit 20
 python3 main.py --use-db --save-db --live-weather --pretty --limit 20
 ```
 
-## 6. Web UI 실행
+## 7. Web UI 실행
 
 웹 폼으로 선박/바이탈 데이터를 입력:
 
@@ -108,7 +128,7 @@ curl -X POST http://127.0.0.1:8000/api/evaluate \
   }'
 ```
 
-## 7. 추천 결과 조회
+## 8. 추천 결과 조회
 
 ```sql
 SELECT case_id, duty_name, flight_level, flight_time_min, distance_m, decision_reason

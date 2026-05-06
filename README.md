@@ -11,6 +11,7 @@ Maritime Emergency Transfer 웹 입력/평가/추천 서비스.
 - `pipeline.py`: 환자/거리/기상/비행 평가 파이프라인
 - `db.py`: MySQL 저장/조회
 - `import_hospitals.py`: `hospital_master_merged.csv` 병원 마스터 적재
+- `fetch_hospital_snapshot.py`: 실시간 가용병상정보 snapshot 적재
 - `patient_eval.py`: NEWS2 환자 평가
 - `flight_eval.py`: 비행 가능성 평가
 - `distance.py`: 거리, 선박 위치 예측, 경로 샘플링

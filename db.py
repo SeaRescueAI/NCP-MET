@@ -99,22 +99,112 @@ def _parse_datetime(value: str | None) -> datetime | None:
 
 
 def fetch_active_hospitals(conn) -> list[dict[str, Any]]:
-    """hospitals_master에서 평가 대상 병원을 읽는다."""
+    """hospitals_master와 최신 hospital_snapshot을 읽는다."""
     sql = """
         SELECT
-            hpid, phpid, duty_name, duty_addr, duty_tel, duty_tel3,
-            duty_emcls, duty_emcls_name, lat, lon, nx, ny,
-            is_trauma_center, region_sido, region_sigungu, is_active
-        FROM hospitals_master
-        WHERE is_active = 1
-          AND lat IS NOT NULL
-          AND lon IS NOT NULL
+            m.hpid, m.phpid, m.duty_name, m.duty_addr, m.duty_tel, m.duty_tel3,
+            m.duty_emcls, m.duty_emcls_name, m.lat, m.lon, m.nx, m.ny,
+            m.is_trauma_center, m.region_sido, m.region_sigungu, m.is_active,
+            s.snapshot_at, s.hvec, s.hvoc, s.hvicc, s.hv31, s.hv34, s.hvcc,
+            s.hv6, s.hv9, s.hv39, s.hv60, s.hv61, s.hvctayn,
+            s.hvangioayn, s.hv7, s.hvventiayn, s.mkiosk_ty1,
+            s.mkiosk_ty2, s.mkiosk_ty3, s.mkiosk_ty4, s.mkiosk_ty5,
+            s.mkiosk_ty6, s.mkiosk_ty11, s.mkiosk_ty19, s.mkiosk_ty22,
+            s.mkiosk_ty23
+        FROM hospitals_master m
+        LEFT JOIN (
+            SELECT hs.*
+            FROM hospital_snapshot hs
+            JOIN (
+                SELECT hpid, MAX(snapshot_at) AS snapshot_at
+                FROM hospital_snapshot
+                GROUP BY hpid
+            ) latest
+              ON latest.hpid = hs.hpid
+             AND latest.snapshot_at = hs.snapshot_at
+        ) s
+          ON s.hpid = m.hpid
+        WHERE m.is_active = 1
+          AND m.lat IS NOT NULL
+          AND m.lon IS NOT NULL
     """
     cur = conn.cursor(dictionary=True)
     cur.execute(sql)
     rows = cur.fetchall()
     cur.close()
     return rows
+
+
+def insert_hospital_snapshots(conn, rows: list[dict[str, Any]]) -> int:
+    """실시간 가용병상 snapshot을 append-only로 저장한다."""
+    if not rows:
+        return 0
+
+    sql = """
+        INSERT INTO hospital_snapshot (
+            hpid, snapshot_at, hvec, hvoc, hvicc, hv31, hv34, hvcc,
+            hv6, hv9, hv39, hv60, hv61, hvctayn, hvangioayn, hv7,
+            hvventiayn, mkiosk_ty1, mkiosk_ty2, mkiosk_ty3, mkiosk_ty4,
+            mkiosk_ty5, mkiosk_ty6, mkiosk_ty11, mkiosk_ty19, mkiosk_ty22,
+            mkiosk_ty23, raw_json
+        )
+        VALUES (
+            %(hpid)s, %(snapshot_at)s, %(hvec)s, %(hvoc)s, %(hvicc)s,
+            %(hv31)s, %(hv34)s, %(hvcc)s, %(hv6)s, %(hv9)s, %(hv39)s,
+            %(hv60)s, %(hv61)s, %(hvctayn)s, %(hvangioayn)s, %(hv7)s,
+            %(hvventiayn)s, %(mkiosk_ty1)s, %(mkiosk_ty2)s, %(mkiosk_ty3)s,
+            %(mkiosk_ty4)s, %(mkiosk_ty5)s, %(mkiosk_ty6)s, %(mkiosk_ty11)s,
+            %(mkiosk_ty19)s, %(mkiosk_ty22)s, %(mkiosk_ty23)s, %(raw_json)s
+        )
+        ON DUPLICATE KEY UPDATE
+            hvec = VALUES(hvec),
+            hvoc = VALUES(hvoc),
+            hvicc = VALUES(hvicc),
+            hv31 = VALUES(hv31),
+            hv34 = VALUES(hv34),
+            hvcc = VALUES(hvcc),
+            hv6 = VALUES(hv6),
+            hv9 = VALUES(hv9),
+            hv39 = VALUES(hv39),
+            hv60 = VALUES(hv60),
+            hv61 = VALUES(hv61),
+            hvctayn = VALUES(hvctayn),
+            hvangioayn = VALUES(hvangioayn),
+            hv7 = VALUES(hv7),
+            hvventiayn = VALUES(hvventiayn),
+            mkiosk_ty1 = VALUES(mkiosk_ty1),
+            mkiosk_ty2 = VALUES(mkiosk_ty2),
+            mkiosk_ty3 = VALUES(mkiosk_ty3),
+            mkiosk_ty4 = VALUES(mkiosk_ty4),
+            mkiosk_ty5 = VALUES(mkiosk_ty5),
+            mkiosk_ty6 = VALUES(mkiosk_ty6),
+            mkiosk_ty11 = VALUES(mkiosk_ty11),
+            mkiosk_ty19 = VALUES(mkiosk_ty19),
+            mkiosk_ty22 = VALUES(mkiosk_ty22),
+            mkiosk_ty23 = VALUES(mkiosk_ty23),
+            raw_json = VALUES(raw_json)
+    """
+    cur = conn.cursor()
+    cur.executemany(sql, rows)
+    affected = cur.rowcount
+    cur.close()
+    return affected
+
+
+def mark_trauma_centers(conn, hpids: set[str]) -> int:
+    """공식 외상센터 명단을 hospitals_master에 반영한다."""
+    if not hpids:
+        return 0
+
+    cur = conn.cursor()
+    cur.execute("UPDATE hospitals_master SET is_trauma_center = 0")
+    cur.executemany(
+        "UPDATE hospitals_master SET is_trauma_center = 1 WHERE hpid = %s",
+        [(hpid,) for hpid in sorted(hpids)],
+    )
+    affected = cur.rowcount
+    cur.close()
+    return affected
 
 
 def upsert_hospitals(conn, rows: list[dict[str, Any]]) -> int:
